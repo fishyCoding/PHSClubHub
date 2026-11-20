@@ -58,8 +58,24 @@ export function timeAgo(isoDateTime: string): string {
   return new Date(isoDateTime).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
+const SLOT_LABELS: Partial<Record<Slot, string>> = {
+  'flex time': 'Flex Time',
+  'tiger time': 'Tiger Time',
+};
+
+/** How a period is written in sentences: "lunch", "Tiger Time". */
+export function slotLabel(slot: Slot): string {
+  return SLOT_LABELS[slot] ?? slot;
+}
+
+/** Capitalized, for dropdowns and headings: "Lunch", "Tiger Time". */
+export function slotTitle(slot: Slot): string {
+  const l = slotLabel(slot);
+  return l[0].toUpperCase() + l.slice(1);
+}
+
 export function describeMeeting(m: MeetingTime): string {
-  return `${m.day} ${m.slot}`;
+  return `${m.day} ${slotLabel(m.slot)}`;
 }
 
 export function slotOrder(s: Slot): number {

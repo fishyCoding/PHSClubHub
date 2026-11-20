@@ -2,6 +2,7 @@
 // so the prototype always looks current.
 
 import { addDays, mondayOf, todayISO, weekdayOf } from './dates';
+import { scheduleForClubs } from './selectors';
 import type {
   AttendanceSession,
   Club,
@@ -12,10 +13,11 @@ import type {
   Membership,
   Post,
   Report,
+  Rsvp,
   User,
 } from './types';
 
-export const DB_VERSION = 3;
+export const DB_VERSION = 6;
 
 function hoursAgo(h: number): string {
   return new Date(Date.now() - h * 3600_000).toISOString();
@@ -72,7 +74,10 @@ const clubs: Club[] = [
   {
     id: 'c-mun', name: 'Model UN', category: 'Academic', advisor: 'Mr. Delgado',
     description: 'Represent countries, write resolutions and negotiate at conferences. Great for anyone interested in history, politics or public speaking.',
-    meetings: [{ day: 'Monday', slot: 'lunch', room: 'Room 231' }],
+    meetings: [
+      { day: 'Monday', slot: 'lunch', room: 'Room 231' },
+      { day: 'Tuesday', slot: 'flex time', room: 'Room 231', note: 'conference prep' },
+    ],
     hiddenMembership: false, archived: false, createdAt: created, createdBy: 'u-admin',
   },
   {
@@ -108,7 +113,7 @@ const clubs: Club[] = [
   {
     id: 'c-mind', name: 'Mental Health Matters', category: 'Wellness', advisor: 'Mr. Reyes (Counseling)',
     description: 'Peer support, de-stress events and awareness campaigns. Membership is private.',
-    meetings: [{ day: 'Thursday', slot: 'before school', room: 'Counseling Center' }],
+    meetings: [{ day: 'Thursday', slot: 'tiger time', room: 'Counseling Center' }],
     hiddenMembership: true, archived: false, createdAt: created, createdBy: 'u-admin',
   },
   {
@@ -123,7 +128,7 @@ const clubs: Club[] = [
   {
     id: 'c-key', name: 'Key Club', category: 'Service', advisor: 'Mrs. Duval',
     description: 'Volunteer service projects around Princeton: food drives, tutoring, park cleanups.',
-    meetings: [{ day: 'Wednesday', slot: 'before school', room: 'Cafeteria' }],
+    meetings: [{ day: 'Wednesday', slot: 'flex time', room: 'Cafeteria' }],
     hiddenMembership: false, archived: false, createdAt: created, createdBy: 'u-admin',
   },
   {
@@ -220,6 +225,16 @@ const follows: Follow[] = [
 
 const posts: Post[] = [
   {
+    id: 'p-s1', clubId: 'c-debate', authorId: 'u-jordan', kind: 'schedule', pinned: false,
+    title: 'Cancelled: next Wednesday after school', body: 'Ms. Koenig is at a conference. Practice rounds resume the week after.',
+    audience: { type: 'public' }, createdAt: hoursAgo(5),
+  },
+  {
+    id: 'p-s2', clubId: 'c-enviro', authorId: 'u-ruby', kind: 'schedule', pinned: false,
+    title: 'Moved: next Thursday lunch is in the Courtyard Garden', body: 'Bring gloves, we are planting bulbs.',
+    audience: { type: 'public' }, createdAt: hoursAgo(30),
+  },
+  {
     id: 'p-1', clubId: 'c-robotics', authorId: 'u-maya', kind: 'update', pinned: true,
     title: 'Build season kickoff is in January',
     body: 'We will watch the game reveal together in the Engineering Lab. Before then, please finish the CAD onboarding module. Ask Kenji if you get stuck.',
@@ -238,7 +253,7 @@ const posts: Post[] = [
     audience: { type: 'selected', userIds: ['u-priya', 'u-dev', 'u-felix'] }, createdAt: hoursAgo(3),
   },
   {
-    id: 'p-4', clubId: 'c-debate', authorId: 'u-jordan', kind: 'update', pinned: false,
+    id: 'p-4', clubId: 'c-debate', authorId: 'u-jordan', kind: 'update', pinned: true,
     title: 'Tournament sign-ups open',
     body: 'The December invitational sign-up sheet is open until next Wednesday. Novices are strongly encouraged to come.',
     audience: { type: 'public' }, createdAt: hoursAgo(28),
@@ -364,8 +379,25 @@ const reports: Report[] = [
   },
 ];
 
+/** A few answers for the coming week so leaders see headcounts in the demo. */
+function buildRsvps(db: DB): Rsvp[] {
+  const rand = rng(7);
+  const out: Rsvp[] = [];
+  const leaveBlank = new Set(['u-priya', 'u-maya']); // demo users get to answer themselves
+  for (const item of scheduleForClubs(db, db.clubs.map((c) => c.id), today, 8)) {
+    if (item.status === 'cancelled') continue;
+    for (const m of db.memberships) {
+      if (m.clubId !== item.clubId || m.status !== 'active' || leaveBlank.has(m.userId)) continue;
+      const x = rand();
+      const status = x < 0.55 ? 'going' : x < 0.7 ? 'maybe' : x < 0.82 ? 'not_going' : null;
+      if (status) out.push({ userId: m.userId, clubId: item.clubId, date: item.date, slot: item.slot, status, at: hoursAgo(rand() * 48) });
+    }
+  }
+  return out;
+}
+
 export function createSeed(): DB {
-  return {
+  const db: DB = {
     version: DB_VERSION,
     users,
     clubs,
@@ -377,7 +409,10 @@ export function createSeed(): DB {
     leaderRequests,
     reports,
     audit: [],
+    rsvps: [],
     reads: { 'u-priya': ['p-1', 'p-7'] },
     sessionUserId: null,
   };
+  db.rsvps = buildRsvps(db);
+  return db;
 }

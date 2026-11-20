@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMe } from '../components/Layout';
+import { PostTypeTag } from '../components/PostCard';
 import { ClubIcon, Empty, Icon, type IconName, Segmented, useToast } from '../components/ui';
 import * as A from '../data/actions';
 import { addDays, timeAgo, todayISO, toISODate } from '../data/dates';
@@ -11,8 +12,8 @@ import { useDB } from '../data/store';
 type Filter = 'all' | 'unread' | 'updates' | 'activity';
 
 const KIND: Record<InboxKind, { icon: IconName; label: string }> = {
-  post: { icon: 'megaphone', label: 'Update' },
-  private: { icon: 'lock', label: 'Members only' },
+  post: { icon: 'megaphone', label: 'Announcement' },
+  private: { icon: 'lock', label: 'Message' },
   schedule: { icon: 'calendar', label: 'Schedule change' },
   membership: { icon: 'check', label: 'Membership' },
   'leader-request': { icon: 'shield', label: 'Leader request' },
@@ -118,8 +119,10 @@ function InboxRow({ item, unread }: { item: InboxItem; unread: boolean }) {
   const db = useDB();
   const nav = useNavigate();
   const { run } = useToast();
+  const me = useMe();
   const club = item.clubId ? clubById(db, item.clubId) : undefined;
   const k = KIND[item.kind];
+  const post = item.group === 'updates' ? db.posts.find((p) => p.id === item.id) : undefined;
 
   const open = () => {
     A.markRead([item.id]);
@@ -136,15 +139,21 @@ function InboxRow({ item, unread }: { item: InboxItem; unread: boolean }) {
     >
       <div className="inbox-icon">
         {club ? <ClubIcon club={club} /> : <span className="club-icon"><Icon name={k.icon} /></span>}
-        <span className={`inbox-kind kind-${item.kind}`} title={k.label}>
-          <Icon name={k.icon} size={12} />
-        </span>
       </div>
       <div className="inbox-main">
         <div className="inbox-meta">
           {club && <span className="strong">{club.name}</span>}
-          <span>{k.label}</span>
-          <span>· {timeAgo(item.at)}</span>
+          <span>{timeAgo(item.at)}</span>
+        </div>
+        <div style={{ margin: '4px 0 2px' }}>
+          {post ? (
+            <PostTypeTag post={post} viewerId={me.id} />
+          ) : (
+            <span className={`type-tag ${item.needsAction ? 'action' : 'activity'}`}>
+              <Icon name={k.icon} size={13} />
+              {k.label}
+            </span>
+          )}
         </div>
         <div className="inbox-title">{item.title}</div>
         {item.body && <div className="inbox-body">{item.body}</div>}

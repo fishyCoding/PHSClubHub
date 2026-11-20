@@ -3,15 +3,28 @@ import { Link, useParams } from 'react-router-dom';
 import { RelationBadge } from '../components/ClubCard';
 import { useMe } from '../components/Layout';
 import { PostCard } from '../components/PostCard';
-import { Avatar, ClubIcon, ConfirmButton, Empty, Tabs, useToast } from '../components/ui';
+import { RsvpButtons, RsvpCount } from '../components/Rsvp';
+import {
+  Avatar,
+  ClubIcon,
+  ConfirmButton,
+  Empty,
+  matchesQuery,
+  NoMatches,
+  personFields,
+  SearchBox,
+  Tabs,
+  useToast,
+} from '../components/ui';
 import * as A from '../data/actions';
-import { describeMeeting, formatDate } from '../data/dates';
+import { describeMeeting, formatDate, slotLabel, todayISO } from '../data/dates';
 import * as P from '../data/permissions';
 import {
   activeMembers,
   clubById,
   clubPostsFor,
   followerCount,
+  scheduleForClubs,
   upcomingEvents,
   userById,
 } from '../data/selectors';
@@ -98,6 +111,7 @@ export function ClubPage() {
         </div>
 
         <aside className="stack">
+          <NextMeetingCard club={club} />
           <div className="card">
             <h3>When &amp; where</h3>
             <div className="stack" style={{ gap: 8 }}>
@@ -201,11 +215,63 @@ function LeadersCard({ club }: { club: Club }) {
   );
 }
 
+function NextMeetingCard({ club }: { club: Club }) {
+  const db = useDB();
+  const next = scheduleForClubs(db, [club.id], todayISO(), 14).find((s) => s.status !== 'cancelled');
+  if (!next) return null;
+  return (
+    <div className="card stack" style={{ gap: 8 }}>
+      <div className="row-between">
+        <h3 style={{ margin: 0 }}>Next meeting</h3>
+        <RsvpCount clubId={club.id} date={next.date} slot={next.slot} />
+      </div>
+      <div>
+        <div className="strong">
+          {next.date === todayISO() ? 'Today' : formatDate(next.date, { weekday: 'long' })}, {slotLabel(next.slot)}
+        </div>
+        <div className="muted small">
+          {next.room}
+          {next.status === 'moved' && ' (room changed)'}
+          {next.status === 'extra' && next.title && ` · ${next.title}`}
+        </div>
+      </div>
+      <RsvpButtons clubId={club.id} date={next.date} slot={next.slot} />
+    </div>
+  );
+}
+
 function ClubSchedule({ club }: { club: Club }) {
   const db = useDB();
   const events = upcomingEvents(db, club.id);
+  const soon = scheduleForClubs(db, [club.id], todayISO(), 14);
   return (
     <div className="stack">
+      <div className="card card-flush">
+        <div className="card-section row-between">
+          <h3 style={{ margin: 0 }}>Next two weeks</h3>
+          <span className="muted tiny">Let the leaders know if you're coming</span>
+        </div>
+        {soon.length === 0 ? (
+          <div className="card-section muted small">No meetings in the next two weeks.</div>
+        ) : (
+          soon.map((s, i) => (
+            <div key={i} className="list-item" style={{ flexWrap: 'wrap' }}>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <div className="strong small" style={s.status === 'cancelled' ? { textDecoration: 'line-through' } : {}}>
+                  {formatDate(s.date)} · {slotLabel(s.slot)}
+                </div>
+                <div className="tiny muted">
+                  {s.status === 'cancelled' ? 'Cancelled' : s.room}
+                  {s.status === 'moved' && ' (room changed)'}
+                  {s.status === 'extra' && s.title && ` · ${s.title}`}
+                </div>
+                <RsvpCount clubId={club.id} date={s.date} slot={s.slot} />
+              </div>
+              <RsvpButtons clubId={club.id} date={s.date} slot={s.slot} cancelled={s.status === 'cancelled'} compact />
+            </div>
+          ))
+        )}
+      </div>
       <div className="card">
         <h3>Regular meetings</h3>
         {club.meetings.length === 0 ? (
@@ -241,7 +307,7 @@ function ClubSchedule({ club }: { club: Club }) {
               <div style={{ flex: 1 }}>
                 <div className="strong small">{e.title}</div>
                 <div className="tiny muted">
-                  {formatDate(e.date)} · {e.slot} · {e.room}
+                  {formatDate(e.date)} · {slotLabel(e.slot)} · {e.room}
                 </div>
               </div>
             </div>
@@ -254,8 +320,10 @@ function ClubSchedule({ club }: { club: Club }) {
 
 function MemberList({ club }: { club: Club }) {
   const db = useDB();
-  const members = activeMembers(db, club.id)
-    .map((m) => ({ m, u: userById(db, m.userId)! }))
+  const [q, setQ] = useState('');
+  const all = activeMembers(db, club.id).map((m) => ({ m, u: userById(db, m.userId)! }));
+  const members = all
+    .filter(({ u, m }) => matchesQuery(q, ...personFields(u), m.role === 'leader' ? 'leader' : 'member'))
     .sort((a, b) => Number(b.m.role === 'leader') - Number(a.m.role === 'leader') || a.u.name.localeCompare(b.u.name));
   return (
     <div className="card card-flush">
@@ -264,6 +332,10 @@ function MemberList({ club }: { club: Club }) {
           Private membership: only you (as a leader or admin) can see this list.
         </div>
       )}
+      <div className="card-section">
+        <SearchBox value={q} onChange={setQ} placeholder={`Search ${all.length} members`} count={members.length} />
+      </div>
+      {members.length === 0 && q && <NoMatches query={q} onClear={() => setQ('')} />}
       {members.map(({ m, u }) => (
         <div key={m.id} className="list-item">
           <Avatar user={u} />

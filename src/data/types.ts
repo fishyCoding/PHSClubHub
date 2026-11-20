@@ -21,8 +21,25 @@ export interface User {
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
 
-export const SLOTS = ['before school', 'lunch', 'after school', 'evening'] as const;
+/** Meeting periods in order through the day. */
+export const SLOTS = ['before school', 'lunch', 'flex time', 'tiger time', 'after school', 'evening'] as const;
 export type Slot = (typeof SLOTS)[number];
+
+/** Periods that only exist on some days. Anything not listed runs every school day. */
+export const SLOT_DAYS: Partial<Record<Slot, readonly Weekday[]>> = {
+  'flex time': ['Tuesday', 'Wednesday'],
+  'tiger time': ['Thursday'],
+};
+
+export function slotRunsOn(slot: Slot, day: Weekday): boolean {
+  const days = SLOT_DAYS[slot];
+  return !days || days.includes(day);
+}
+
+/** The periods available on a given day (all of them if no day is given). */
+export function slotsOn(day: Weekday | null | undefined): Slot[] {
+  return SLOTS.filter((s) => !day || slotRunsOn(s, day));
+}
 
 /** A regular meeting, described the way students say it: "Tuesday lunch". */
 export interface MeetingTime {
@@ -157,6 +174,18 @@ export interface Report {
   resolvedAt?: string;
 }
 
+export type RsvpStatus = 'going' | 'maybe' | 'not_going';
+
+/** A student's answer for one specific meeting (club + date + time of day). */
+export interface Rsvp {
+  userId: ID;
+  clubId: ID;
+  date: string; // YYYY-MM-DD
+  slot: Slot;
+  status: RsvpStatus;
+  at: string;
+}
+
 export interface AuditEntry {
   id: ID;
   at: string;
@@ -177,6 +206,7 @@ export interface DB {
   leaderRequests: LeaderRequest[];
   reports: Report[];
   audit: AuditEntry[];
+  rsvps: Rsvp[];
   /** userId -> ids of posts that user has seen. */
   reads: Record<ID, ID[]>;
   sessionUserId: ID | null;

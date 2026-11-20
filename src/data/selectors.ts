@@ -2,7 +2,7 @@
 
 import { addDays, mondayOf, slotOrder, todayISO, weekdayOf } from './dates';
 import * as P from './permissions';
-import type { AttendanceSession, Club, ClubEvent, DB, ID, Post, Slot, User } from './types';
+import type { AttendanceSession, Club, ClubEvent, DB, ID, Post, Rsvp, RsvpStatus, Slot, User } from './types';
 
 export function clubById(db: DB, id: ID | undefined): Club | undefined {
   return db.clubs.find((c) => c.id === id);
@@ -186,4 +186,34 @@ export function memberAttendance(db: DB, clubId: ID, userId: ID): { present: num
     present: sessions.filter((s) => s.presentUserIds.includes(userId)).length,
     total: sessions.length,
   };
+}
+
+// ---------------------------------------------------------------- RSVPs
+
+function sameMeeting(r: Rsvp, clubId: ID, date: string, slot: Slot) {
+  return r.clubId === clubId && r.date === date && r.slot === slot;
+}
+
+export function rsvpOf(db: DB, userId: ID, clubId: ID, date: string, slot: Slot): RsvpStatus | undefined {
+  return db.rsvps.find((r) => r.userId === userId && sameMeeting(r, clubId, date, slot))?.status;
+}
+
+export interface RsvpSummary {
+  going: ID[];
+  maybe: ID[];
+  notGoing: ID[];
+}
+
+export function rsvpSummary(db: DB, clubId: ID, date: string, slot: Slot): RsvpSummary {
+  const out: RsvpSummary = { going: [], maybe: [], notGoing: [] };
+  for (const r of db.rsvps) {
+    if (!sameMeeting(r, clubId, date, slot)) continue;
+    (r.status === 'going' ? out.going : r.status === 'maybe' ? out.maybe : out.notGoing).push(r.userId);
+  }
+  return out;
+}
+
+/** Is there a (not cancelled) meeting of this club at this date and time? */
+export function meetingExists(db: DB, clubId: ID, date: string, slot: Slot): boolean {
+  return scheduleForClubs(db, [clubId], date, 1).some((s) => s.slot === slot && s.status !== 'cancelled');
 }

@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -286,6 +287,12 @@ const ICONS = {
   clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7v5l3 2',
   userPlus: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 12 0v1M19 8v6M16 11h6',
   alert: 'M12 3l10 18H2zM12 10v4M12 17.5v.5',
+  mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
+  pin: 'M9 3h6l-1 6 4 4H6l4-4zM12 13v8',
+  plus: 'M12 5v14M5 12h14',
+  x: 'M6 6l12 12M18 6L6 18',
+  help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17.5v.5',
+  sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
 } as const;
 
 export type IconName = keyof typeof ICONS;
@@ -306,5 +313,148 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
     >
       <path d={ICONS[name]} />
     </svg>
+  );
+}
+
+// ---------------------------------------------------------------- overflow menu
+
+export interface MenuItem {
+  label: string;
+  onClick: () => void;
+  danger?: boolean;
+}
+
+/** A quiet "⋯" button that opens a small list of actions. */
+export function Menu({ items, label = 'More actions' }: { items: MenuItem[]; label?: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent | KeyboardEvent) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [open]);
+  if (items.length === 0) return null;
+  return (
+    <div className="menu" ref={ref}>
+      <button
+        type="button"
+        className="menu-btn"
+        aria-label={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <circle cx="5" cy="12" r="1.8" />
+          <circle cx="12" cy="12" r="1.8" />
+          <circle cx="19" cy="12" r="1.8" />
+        </svg>
+      </button>
+      {open && (
+        <div className="menu-list" role="menu">
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              role="menuitem"
+              className={it.danger ? 'danger' : ''}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setOpen(false);
+                it.onClick();
+              }}
+            >
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- name search
+
+/**
+ * True if every word in the query appears in at least one of the fields.
+ * "maya 11" matches name "Maya Chen" + "Grade 11". Empty query matches all.
+ */
+export function matchesQuery(query: string, ...fields: (string | number | undefined | null)[]): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return true;
+  const hay = fields
+    .filter((f) => f !== undefined && f !== null)
+    .join(' ')
+    .toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
+/** Fields to search for a person: name, email and grade. */
+export function personFields(u: Pick<User, 'name' | 'email' | 'grade'> | undefined) {
+  return u ? [u.name, u.email, u.grade ? `grade ${u.grade}` : ''] : [];
+}
+
+/** Compact search box for filtering a list of people. */
+export function SearchBox({
+  value,
+  onChange,
+  placeholder = 'Search by name',
+  count,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  /** When filtering, how many results are showing. */
+  count?: number;
+}) {
+  return (
+    <div className="searchbox">
+      <label className="search">
+        <input
+          className="input"
+          type="search"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          aria-label={placeholder}
+        />
+      </label>
+      {value && (
+        <>
+          {count !== undefined && (
+            <span className="tiny muted nowrap">
+              {count} match{count === 1 ? '' : 'es'}
+            </span>
+          )}
+          <button type="button" className="btn btn-ghost btn-sm" onClick={() => onChange('')}>
+            Clear
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Shown in place of a list when a search matches nothing. */
+export function NoMatches({ query, onClear }: { query: string; onClear: () => void }) {
+  return (
+    <div className="card-section muted small" style={{ textAlign: 'center' }}>
+      No one matches “{query}”.{' '}
+      <button type="button" className="linklike" onClick={onClear}>
+        Clear search
+      </button>
+    </div>
   );
 }

@@ -4,7 +4,7 @@ import { useDB } from '../data/store';
 import { activeMembers, followerCount } from '../data/selectors';
 import * as P from '../data/permissions';
 import type { Club, ID } from '../data/types';
-import { ClubIcon } from './ui';
+import { ClubIcon, Icon } from './ui';
 
 export function RelationBadge({ clubId, userId }: { clubId: ID; userId: ID }) {
   const db = useDB();
@@ -24,25 +24,24 @@ export function ClubCard({ club, userId }: { club: Club; userId: ID }) {
         <ClubIcon club={club} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <h3 style={{ marginBottom: 2 }}>{club.name}</h3>
-          <div className="row">
-            <span className="badge">{club.category}</span>
+          <div className="row" style={{ gap: 6 }}>
+            <span className="tiny muted">{club.category}</span>
             <RelationBadge clubId={club.id} userId={userId} />
           </div>
         </div>
       </div>
       <p className="desc">{club.description}</p>
-      <div className="stack" style={{ gap: 2 }}>
+      <div className="club-card-foot">
         {club.meetings.map((m, i) => (
           <div className="meeting-line" key={i}>
-            <span>
-              <strong>{describeMeeting(m)}</strong> <span className="muted">· {m.room}</span>
-            </span>
+            <Icon name="clock" size={14} />
+            <span className="strong">{describeMeeting(m)}</span>
           </div>
         ))}
-      </div>
-      <div className="muted tiny">
-        {club.hiddenMembership ? 'Private membership' : `${activeMembers(db, club.id).length} members`} ·{' '}
-        {followerCount(db, club.id)} followers
+        <div className="muted tiny">
+          {club.hiddenMembership ? 'Private membership' : `${activeMembers(db, club.id).length} members`} ·{' '}
+          {followerCount(db, club.id)} followers
+        </div>
       </div>
     </Link>
   );

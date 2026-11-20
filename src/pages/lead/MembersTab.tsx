@@ -1,4 +1,5 @@
-import { Avatar, ConfirmButton, Empty, useToast } from '../../components/ui';
+import { useState } from 'react';
+import { Avatar, ConfirmButton, Empty, matchesQuery, NoMatches, personFields, SearchBox, useToast } from '../../components/ui';
 import * as A from '../../data/actions';
 import { timeAgo } from '../../data/dates';
 import * as P from '../../data/permissions';
@@ -11,9 +12,12 @@ export function MembersTab({ club }: { club: Club }) {
   const db = useDB();
   const me = useMe();
   const { run } = useToast();
-  const pending = pendingMembers(db, club.id).sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
-  const active = activeMembers(db, club.id)
-    .map((m) => ({ m, u: userById(db, m.userId)! }))
+  const [q, setQ] = useState('');
+  const allPending = pendingMembers(db, club.id).sort((a, b) => a.requestedAt.localeCompare(b.requestedAt));
+  const pending = allPending.filter((m) => matchesQuery(q, ...personFields(userById(db, m.userId))));
+  const allActive = activeMembers(db, club.id).map((m) => ({ m, u: userById(db, m.userId)! }));
+  const active = allActive
+    .filter(({ m, u }) => matchesQuery(q, ...personFields(u), m.role === 'leader' ? 'leader' : 'member'))
     .sort(
       (a, b) => Number(b.m.role === 'leader') - Number(a.m.role === 'leader') || a.u.name.localeCompare(b.u.name),
     );
@@ -27,6 +31,13 @@ export function MembersTab({ club }: { club: Club }) {
           everyone else. Only leaders, the advisor and administrators see this list.
         </div>
       )}
+
+      <SearchBox
+        value={q}
+        onChange={setQ}
+        placeholder="Search members and requests by name, email or grade"
+        count={pending.length + active.length}
+      />
 
       <div className="card card-flush">
         <div className="card-section row-between">
@@ -43,7 +54,11 @@ export function MembersTab({ club }: { club: Club }) {
           )}
         </div>
         {pending.length === 0 ? (
-          <Empty title="No pending requests" />
+          q && allPending.length > 0 ? (
+            <NoMatches query={q} onClear={() => setQ('')} />
+          ) : (
+            <Empty title="No pending requests" />
+          )
         ) : (
           pending.map((m) => {
             const u = userById(db, m.userId)!;
@@ -70,9 +85,12 @@ export function MembersTab({ club }: { club: Club }) {
 
       <div className="card card-flush">
         <div className="card-section row-between">
-          <h3 style={{ margin: 0 }}>Members ({active.length})</h3>
+          <h3 style={{ margin: 0 }}>
+            Members ({q ? `${active.length} of ${allActive.length}` : allActive.length})
+          </h3>
           <span className="muted small">{followerCount(db, club.id)} followers (not listed)</span>
         </div>
+        {active.length === 0 && q && <NoMatches query={q} onClear={() => setQ('')} />}
         {active.map(({ m, u }) => {
           const att = memberAttendance(db, club.id, u.id);
           return (

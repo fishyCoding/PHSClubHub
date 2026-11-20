@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMe } from '../../components/Layout';
 import { ClubIcon, Empty, Tabs } from '../../components/ui';
@@ -64,10 +64,13 @@ export function LeadClub() {
   const db = useDB();
   const me = useMe();
   const [params] = useSearchParams();
-  const initial = params.get('tab') as Tab | null;
-  const [tab, setTab] = useState<Tab>(
-    initial && ['posts', 'schedule', 'attendance', 'members', 'info'].includes(initial) ? initial : 'posts',
-  );
+  const fromUrl = (): Tab => {
+    const t = params.get('tab') as Tab | null;
+    return t && ['posts', 'schedule', 'attendance', 'members', 'info'].includes(t) ? t : 'posts';
+  };
+  const [tab, setTab] = useState<Tab>(fromUrl);
+  // Follow links like ?tab=members even when this page is already open.
+  useEffect(() => setTab(fromUrl()), [params, clubId]); // eslint-disable-line react-hooks/exhaustive-deps
   const club = clubById(db, clubId);
   if (!club) return <NotFound what="club" />;
   if (!P.canManageClub(db, me.id, club.id)) {

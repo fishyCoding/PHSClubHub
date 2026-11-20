@@ -80,6 +80,12 @@ export function isInFeed(db: DB, userId: ID, post: Post): boolean {
   );
 }
 
+/** Students who are members or followers can say whether they're coming. */
+export function canRsvp(db: DB, userId: ID, clubId: ID): boolean {
+  if (getUser(db, userId)?.role !== 'student') return false;
+  return isActiveMember(db, userId, clubId) || isFollowing(db, userId, clubId);
+}
+
 /** Q-2: only admins create clubs. */
 export function canCreateClub(db: DB, userId: ID): boolean {
   return isAdmin(db, userId);

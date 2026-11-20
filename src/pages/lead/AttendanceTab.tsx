@@ -1,9 +1,23 @@
 import { useEffect, useState } from 'react';
-import { Avatar, ConfirmButton, Empty, Meter, pct, rateTone, useToast } from '../../components/ui';
+import {
+  Avatar,
+  ConfirmButton,
+  Empty,
+  matchesQuery,
+  Meter,
+  NoMatches,
+  pct,
+  personFields,
+  rateTone,
+  SearchBox,
+  useToast,
+} from '../../components/ui';
 import * as A from '../../data/actions';
 import { formatDate, todayISO, weekdayOf } from '../../data/dates';
 import * as P from '../../data/permissions';
 import { activeMembers, attendanceFor, attendanceStats, memberAttendance, userById } from '../../data/selectors';
+import { RSVP_LABEL } from '../../components/Rsvp';
+import type { RsvpStatus } from '../../data/types';
 import { useDB } from '../../data/store';
 import type { Club, ID } from '../../data/types';
 import { useMe } from '../../components/Layout';
@@ -21,6 +35,12 @@ export function AttendanceTab({ club }: { club: Club }) {
 
   const [present, setPresent] = useState<ID[]>(existing?.presentUserIds ?? []);
   const [guests, setGuests] = useState(existing?.guestCount ?? 0);
+  const [q, setQ] = useState('');
+  const shownRoster = roster.filter((u) => matchesQuery(q, ...personFields(u)));
+  // What each member said ahead of time for any meeting on this date.
+  const said = new Map<ID, RsvpStatus>();
+  for (const r of db.rsvps) if (r.clubId === club.id && r.date === date) said.set(r.userId, r.status);
+  const saidGoing = roster.filter((u) => said.get(u.id) === 'going').map((u) => u.id);
   // Load the saved roll whenever the date changes.
   useEffect(() => {
     const s = attendanceFor(db, club.id).find((x) => x.date === date);
@@ -96,8 +116,24 @@ export function AttendanceTab({ club }: { club: Club }) {
                 </button>
               </div>
             </div>
+            {saidGoing.length > 0 && (
+              <div className="callout small row-between">
+                <span>
+                  {saidGoing.length} member{saidGoing.length === 1 ? '' : 's'} said they were coming.
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => setPresent([...new Set([...present, ...saidGoing])])}
+                >
+                  Mark them present
+                </button>
+              </div>
+            )}
+            <SearchBox value={q} onChange={setQ} placeholder="Find a student" count={shownRoster.length} />
+            {shownRoster.length === 0 && <NoMatches query={q} onClear={() => setQ('')} />}
             <div className="roll">
-              {roster.map((u) => {
+              {shownRoster.map((u) => {
                 const on = present.includes(u.id);
                 return (
                   <button
@@ -108,7 +144,14 @@ export function AttendanceTab({ club }: { club: Club }) {
                     aria-pressed={on}
                   >
                     <Avatar user={u} />
-                    <span className="small strong">{u.name}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <span className="small strong" style={{ display: 'block' }}>
+                        {u.name}
+                      </span>
+                      {said.has(u.id) && (
+                        <span className={`tiny rsvp-tally ${said.get(u.id)}`}>RSVP: {RSVP_LABEL[said.get(u.id)!]}</span>
+                      )}
+                    </span>
                     <span className="tick">✓</span>
                   </button>
                 );

@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { MeetingsEditor } from '../../components/MeetingsEditor';
+import { WhosComing } from './WhosComing';
 import { ConfirmButton, Segmented, useToast } from '../../components/ui';
 import * as A from '../../data/actions';
-import { addDays, describeMeeting, formatDate, todayISO, weekdayOf } from '../../data/dates';
+import { addDays, describeMeeting, formatDate, slotLabel, slotTitle, todayISO, weekdayOf } from '../../data/dates';
 import { upcomingEvents } from '../../data/selectors';
 import { useDB } from '../../data/store';
-import { SLOTS, type Club, type EventKind, type MeetingTime, type Slot } from '../../data/types';
+import { slotsOn, type Club, type EventKind, type MeetingTime, type Slot } from '../../data/types';
 
 /** Next date (from today) that has one of this club's regular meetings. */
 function nextMeetingDate(club: Club): { date: string; meeting?: MeetingTime } {
@@ -36,6 +37,7 @@ export function ScheduleTab({ club }: { club: Club }) {
 
   return (
     <div className="stack-lg">
+      <WhosComing club={club} />
       <div className="card stack">
         <div className="row-between">
           <h3 style={{ margin: 0 }}>Regular meetings</h3>
@@ -83,13 +85,24 @@ export function ScheduleTab({ club }: { club: Club }) {
           <div className="form-grid">
             <label className="field">
               <span>Date</span>
-              <input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <input
+                className="input"
+                type="date"
+                value={date}
+                onChange={(e) => {
+                  setDate(e.target.value);
+                  const ok = slotsOn(weekdayOf(e.target.value));
+                  if (!ok.includes(slot)) setSlot('lunch');
+                }}
+              />
             </label>
             <label className="field">
               <span>Time</span>
               <select className="input" value={slot} onChange={(e) => setSlot(e.target.value as Slot)}>
-                {SLOTS.map((s) => (
-                  <option key={s}>{s}</option>
+                {slotsOn(weekdayOf(date)).map((s) => (
+                  <option key={s} value={s}>
+                    {slotTitle(s)}
+                  </option>
                 ))}
               </select>
             </label>
@@ -113,7 +126,7 @@ export function ScheduleTab({ club }: { club: Club }) {
           </label>
           {date && kind !== 'event' && !club.meetings.some((m) => m.day === weekdayOf(date) && m.slot === slot) && (
             <div className="callout warn small">
-              {club.name} does not normally meet {weekdayOf(date) ?? 'on weekends'} {slot}.
+              {club.name} does not normally meet {weekdayOf(date) ?? 'on weekends'} {slotLabel(slot)}.
             </div>
           )}
           <div className="row-between">
@@ -144,7 +157,7 @@ export function ScheduleTab({ club }: { club: Club }) {
                     <span className="strong small">{formatDate(e.date)}</span>
                   </div>
                   <div className="tiny muted">
-                    {e.slot} · {e.room} · {e.title}
+                    {slotLabel(e.slot)} · {e.room} · {e.title}
                   </div>
                 </div>
                 <ConfirmButton

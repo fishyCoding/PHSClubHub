@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useMe } from '../../components/Layout';
 import { PostCard } from '../../components/PostCard';
-import { Avatar, Empty, Segmented, useToast } from '../../components/ui';
+import { Avatar, Empty, matchesQuery, personFields, SearchBox, Segmented, useToast } from '../../components/ui';
 import * as A from '../../data/actions';
 import { activeMembers, clubPostsFor, followerCount, userById } from '../../data/selectors';
 import { useDB } from '../../data/store';
@@ -18,11 +18,14 @@ export function PostsTab({ club }: { club: Club }) {
   const [aud, setAud] = useState<AudienceType>('public');
   const [selected, setSelected] = useState<ID[]>([]);
   const [pinned, setPinned] = useState(false);
+  const [who, setWho] = useState('');
 
   const members = activeMembers(db, club.id)
     .filter((m) => m.userId !== me.id)
     .map((m) => userById(db, m.userId)!)
     .sort((a, b) => a.name.localeCompare(b.name));
+  const shownMembers = members.filter((u) => matchesQuery(who, ...personFields(u)));
+  const allShownSelected = shownMembers.length > 0 && shownMembers.every((u) => selected.includes(u.id));
   const followers = followerCount(db, club.id);
   const posts = clubPostsFor(db, me.id, club.id);
 
@@ -36,7 +39,7 @@ export function PostsTab({ club }: { club: Club }) {
   const submit = () => {
     const audience: Audience =
       aud === 'selected' ? { type: 'selected', userIds: selected } : { type: aud };
-    if (run(() => A.createPost(club.id, { title, body, audience, pinned }), 'Sent')) {
+    if (run(() => A.createPost(club.id, { title, body, audience, pinned }), aud === 'selected' ? 'Message sent' : 'Announcement posted')) {
       setTitle('');
       setBody('');
       setSelected([]);
@@ -54,7 +57,7 @@ export function PostsTab({ club }: { club: Club }) {
             submit();
           }}
         >
-          <h3 style={{ margin: 0 }}>New update or message</h3>
+          <h3 style={{ margin: 0 }}>{aud === 'selected' ? 'New message' : 'New announcement'}</h3>
           <div className="stack" style={{ gap: 6 }}>
             <span className="small strong">Send to</span>
             <Segmented<AudienceType>
@@ -73,19 +76,32 @@ export function PostsTab({ club }: { club: Club }) {
             </span>
           </div>
           {aud === 'selected' && (
-            <div className="card" style={{ padding: 10, maxHeight: 220, overflowY: 'auto' }}>
-              <div className="row-between" style={{ marginBottom: 6 }}>
-                <span className="small strong">Members</span>
+            <div className="card stack" style={{ padding: 10, gap: 6 }}>
+              <div className="row-between">
+                <span className="small strong">
+                  Members {selected.length > 0 && <span className="muted">· {selected.length} selected</span>}
+                </span>
                 <button
                   type="button"
                   className="btn btn-ghost btn-sm"
-                  onClick={() => setSelected(selected.length === members.length ? [] : members.map((m) => m.id))}
+                  disabled={shownMembers.length === 0}
+                  onClick={() => {
+                    const ids = shownMembers.map((m) => m.id);
+                    setSelected(
+                      allShownSelected ? selected.filter((x) => !ids.includes(x)) : [...new Set([...selected, ...ids])],
+                    );
+                  }}
                 >
-                  {selected.length === members.length ? 'Clear' : 'Select all'}
+                  {allShownSelected ? (who ? 'Unselect matches' : 'Clear') : who ? 'Select matches' : 'Select all'}
                 </button>
               </div>
+              {members.length > 4 && <SearchBox value={who} onChange={setWho} placeholder="Search members" />}
               {members.length === 0 && <p className="muted small">No other members yet.</p>}
-              {members.map((u) => (
+              {members.length > 0 && shownMembers.length === 0 && (
+                <p className="muted small">No members match “{who}”.</p>
+              )}
+              <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+              {shownMembers.map((u) => (
                 <label key={u.id} className="check" style={{ padding: '4px 0' }}>
                   <input
                     type="checkbox"
@@ -98,6 +114,7 @@ export function PostsTab({ club }: { club: Club }) {
                   <span className="small">{u.name}</span>
                 </label>
               ))}
+              </div>
             </div>
           )}
           <label className="field">
@@ -116,7 +133,7 @@ export function PostsTab({ club }: { club: Club }) {
             <div className="row">
               <span className="tiny muted">Reaches {reach}</span>
               <button className="btn btn-primary" type="submit" disabled={!title.trim() || (aud === 'selected' && !selected.length)}>
-                Send
+                {aud === 'selected' ? 'Send message' : 'Post announcement'}
               </button>
             </div>
           </div>

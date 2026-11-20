@@ -6,24 +6,67 @@ import * as P from '../data/permissions';
 import { clubById, isRead, userById } from '../data/selectors';
 import { useDB } from '../data/store';
 import type { ID, Post } from '../data/types';
-import { Avatar, ClubIcon, Modal, useToast } from './ui';
+import { Avatar, ClubIcon, Icon, Menu, type MenuItem, Modal, useToast } from './ui';
 
-export function AudienceBadge({ post }: { post: Post }) {
+export type PostType = 'announcement' | 'message' | 'schedule';
+
+/**
+ * What kind of post this is, in plain words:
+ *  - Announcement: a club-wide update (to everyone, or members only)
+ *  - Message: sent to specific members
+ *  - Schedule change: a cancellation, room change or extra meeting
+ */
+export function postType(post: Post): PostType {
+  if (post.kind === 'schedule') return 'schedule';
+  if (post.audience.type === 'selected') return 'message';
+  return 'announcement';
+}
+
+export const POST_TYPE_LABEL: Record<PostType, string> = {
+  announcement: 'Announcement',
+  message: 'Message',
+  schedule: 'Schedule change',
+};
+
+const POST_TYPE_ICON = { announcement: 'megaphone', message: 'mail', schedule: 'calendar' } as const;
+
+/** Coloured pill saying what kind of post this is, plus who it went to. */
+export function PostTypeTag({ post, viewerId }: { post: Post; viewerId?: ID }) {
   const db = useDB();
-  switch (post.audience.type) {
-    case 'public':
-      return post.kind === 'schedule' ? <span className="badge info">Schedule change</span> : null;
-    case 'members':
-      return <span className="badge private">Members only</span>;
-    case 'selected': {
-      const names = post.audience.userIds.map((id) => userById(db, id)?.name.split(' ')[0] ?? '?');
-      return (
-        <span className="badge private" title={names.join(', ')}>
-          Private · {names.length <= 3 ? names.join(', ') : `${names.length} members`}
-        </span>
-      );
-    }
+  const type = postType(post);
+  let detail = '';
+  let title: string | undefined;
+  if (post.audience.type === 'members') detail = 'Members only';
+  if (post.audience.type === 'selected') {
+    const ids = post.audience.userIds;
+    const names = ids.map((id) => userById(db, id)?.name.split(' ')[0] ?? '?');
+    title = `Sent to ${names.join(', ')}`;
+    detail =
+      viewerId && ids.includes(viewerId)
+        ? ids.length === 1
+          ? 'To you'
+          : `To you + ${ids.length - 1}`
+        : ids.length <= 3
+          ? `To ${names.join(', ')}`
+          : `To ${ids.length} members`;
   }
+  return (
+    <span className={`type-tag ${type}`} title={title}>
+      <Icon name={POST_TYPE_ICON[type]} size={13} />
+      {POST_TYPE_LABEL[type]}
+      {detail && (
+        <span className="type-detail">
+          {post.audience.type === 'members' && <Icon name="lock" size={11} />}
+          {detail}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** @deprecated kept for older call sites; same as PostTypeTag. */
+export function AudienceBadge({ post }: { post: Post }) {
+  return <PostTypeTag post={post} />;
 }
 
 export function PostCard({
@@ -46,55 +89,47 @@ export function PostCard({
   const unread = highlightUnread && !isRead(db, viewerId, post.id);
   const canManage = P.canManageClub(db, viewerId, post.clubId);
 
+  const actions: MenuItem[] = [];
+  if (canManage && !post.removed) {
+    actions.push({ label: post.pinned ? 'Unpin' : 'Pin to top', onClick: () => run(() => A.togglePin(post.id)) });
+    actions.push({ label: 'Delete', danger: true, onClick: () => run(() => A.deletePost(post.id), 'Post deleted') });
+  }
+  if (P.canReport(db, viewerId, post) && !post.removed) {
+    actions.push({ label: 'Report…', onClick: () => setReporting(true) });
+  }
+
   return (
     <article className={`card post${unread ? ' unread' : ''}${post.removed ? ' removed' : ''}`}>
       <div className="post-head">
-        {showClub && club ? (
-          <ClubIcon club={club} />
-        ) : author ? (
-          <Avatar user={author} />
-        ) : null}
+        {showClub && club ? <ClubIcon club={club} /> : author ? <Avatar user={author} /> : null}
         <div style={{ flex: 1, minWidth: 0 }}>
-          {showClub && club && (
-            <Link to={`/clubs/${club.id}`} className="strong" style={{ color: 'var(--text)' }}>
+          {showClub && club ? (
+            <Link to={`/clubs/${club.id}`} className="post-source">
               {club.name}
             </Link>
+          ) : (
+            <span className="post-source">{author?.name ?? 'Unknown'}</span>
           )}
           <div className="post-meta">
-            {author?.name ?? 'Unknown'} · {timeAgo(post.createdAt)}
+            {showClub && <span>{author?.name ?? 'Unknown'}</span>}
+            <span>{timeAgo(post.createdAt)}</span>
           </div>
         </div>
-        <div className="row" style={{ justifyContent: 'flex-end' }}>
-          {post.pinned && <span className="badge accent">Pinned</span>}
-          <AudienceBadge post={post} />
-          {unread && <span className="badge accent">New</span>}
-        </div>
+        {unread && <span className="unread-dot" aria-label="New" />}
+        <Menu items={actions} />
+      </div>
+      <div className="row" style={{ gap: 6 }}>
+        <PostTypeTag post={post} viewerId={viewerId} />
+        {post.pinned && (
+          <span className="type-tag pinned">
+            <Icon name="pin" size={13} />
+            Pinned
+          </span>
+        )}
       </div>
       <div className="post-title">{post.title}</div>
       {post.body && <div className="post-body">{post.body}</div>}
-      {post.removed && (
-        <div className="callout warn">Removed by a moderator: {post.removed.reason}</div>
-      )}
-      <div className="row" style={{ justifyContent: 'flex-end' }}>
-        {canManage && !post.removed && (
-          <>
-            <button className="btn btn-ghost btn-sm" onClick={() => run(() => A.togglePin(post.id))}>
-              {post.pinned ? 'Unpin' : 'Pin'}
-            </button>
-            <button
-              className="btn btn-ghost btn-sm btn-danger"
-              onClick={() => run(() => A.deletePost(post.id), 'Post deleted')}
-            >
-              Delete
-            </button>
-          </>
-        )}
-        {P.canReport(db, viewerId, post) && !post.removed && (
-          <button className="btn btn-ghost btn-sm muted" onClick={() => setReporting(true)}>
-            Report
-          </button>
-        )}
-      </div>
+      {post.removed && <div className="callout warn">Removed by a moderator: {post.removed.reason}</div>}
       {reporting && (
         <Modal
           title="Report this post"

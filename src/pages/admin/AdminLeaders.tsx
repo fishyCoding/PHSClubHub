@@ -1,6 +1,15 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Avatar, ConfirmButton, Empty, Segmented, useToast } from '../../components/ui';
+import {
+  Avatar,
+  ConfirmButton,
+  Empty,
+  matchesQuery,
+  personFields,
+  SearchBox,
+  Segmented,
+  useToast,
+} from '../../components/ui';
 import * as A from '../../data/actions';
 import { timeAgo } from '../../data/dates';
 import { clubById, userById } from '../../data/selectors';
@@ -12,16 +21,22 @@ export function AdminLeaders() {
   const db = useDB();
   const { run } = useToast();
   const [show, setShow] = useState<Show>('pending');
+  const [q, setQ] = useState('');
+  const reqMatches = (r: { userId: string; clubId: string; position: string }) =>
+    matchesQuery(q, ...personFields(userById(db, r.userId)), clubById(db, r.clubId)?.name, r.position);
   const pending = db.leaderRequests
     .filter((r) => r.status === 'pending')
+    .filter(reqMatches)
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const history = db.leaderRequests
     .filter((r) => r.status !== 'pending')
+    .filter(reqMatches)
     .sort((a, b) => (b.decidedAt ?? '').localeCompare(a.decidedAt ?? ''));
   const leaders = db.memberships
     .filter((m) => m.role === 'leader' && m.status === 'active')
     .map((m) => ({ m, u: userById(db, m.userId)!, c: clubById(db, m.clubId)! }))
     .filter((x) => x.c && !x.c.archived)
+    .filter((x) => matchesQuery(q, ...personFields(x.u), x.c.name))
     .sort((a, b) => a.c.name.localeCompare(b.c.name));
 
   return (
@@ -45,10 +60,17 @@ export function AdminLeaders() {
         />
       </div>
 
+      <SearchBox
+        value={q}
+        onChange={setQ}
+        placeholder="Search by student, email or club"
+        count={show === 'pending' ? pending.length : show === 'leaders' ? leaders.length : history.length}
+      />
+
       {show === 'pending' && (
         <div className="card card-flush">
           {pending.length === 0 ? (
-            <Empty title="No requests waiting" />
+            <Empty title={q ? `No requests match “${q}”` : 'No requests waiting'} />
           ) : (
             pending.map((r) => {
               const u = userById(db, r.userId)!;
@@ -96,6 +118,13 @@ export function AdminLeaders() {
               </tr>
             </thead>
             <tbody>
+              {leaders.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="muted small" style={{ textAlign: 'center' }}>
+                    {q ? `No leaders match “${q}”` : 'No verified leaders yet'}
+                  </td>
+                </tr>
+              )}
               {leaders.map(({ m, u, c }) => (
                 <tr key={m.id}>
                   <td className="strong">{c.name}</td>
@@ -129,7 +158,7 @@ export function AdminLeaders() {
       {show === 'history' && (
         <div className="card card-flush">
           {history.length === 0 ? (
-            <Empty title="No decisions yet" />
+            <Empty title={q ? `No decisions match “${q}”` : 'No decisions yet'} />
           ) : (
             history.map((r) => (
               <div key={r.id} className="list-item small">

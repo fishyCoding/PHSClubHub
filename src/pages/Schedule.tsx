@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMe } from '../components/Layout';
+import { RsvpButtons, RsvpCount } from '../components/Rsvp';
 import { Empty, Segmented } from '../components/ui';
-import { addDays, formatDate, todayISO } from '../data/dates';
+import { addDays, formatDate, slotLabel, todayISO } from '../data/dates';
 import { clubById, myClubIds, scheduleFor, thisWeekStart } from '../data/selectors';
 import { useDB } from '../data/store';
 import { WEEKDAYS } from '../data/types';
@@ -74,19 +75,30 @@ export function Schedule() {
                   {dayItems.map((s, j) => {
                     const club = clubById(db, s.clubId)!;
                     return (
-                      <Link
+                      <div
                         key={j}
-                        to={`/clubs/${club.id}`}
                         className={`slot ${s.relation === 'following' ? 'following' : ''} ${s.status}`}
                       >
-                        <span className="slot-label">{s.slot}</span>
-                        <span className="strong">{club.name}</span>
+                        <span className="slot-label">{slotLabel(s.slot)}</span>
+                        <Link to={`/clubs/${club.id}`} className="strong text">
+                          {club.name}
+                        </Link>
                         <span className="muted">{s.room}</span>
                         {s.status === 'cancelled' && <span className="badge danger">Cancelled</span>}
                         {s.status === 'moved' && <span className="badge warn">Room change</span>}
                         {s.status === 'extra' && <span className="badge info">{s.title}</span>}
                         {s.note && <span className="tiny muted">{s.note}</span>}
-                      </Link>
+                        <RsvpCount clubId={s.clubId} date={s.date} slot={s.slot} />
+                        <div style={{ marginTop: 4 }}>
+                          <RsvpButtons
+                            clubId={s.clubId}
+                            date={s.date}
+                            slot={s.slot}
+                            cancelled={s.status === 'cancelled'}
+                            compact
+                          />
+                        </div>
+                      </div>
                     );
                   })}
                 </div>

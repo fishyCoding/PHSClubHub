@@ -2,6 +2,8 @@
 // permissions (permissions.ts) for the signed-in user before changing data,
 // the same way a server endpoint would.
 
+import { slotLabel, todayISO, weekdayOf } from './dates';
+import { meetingExists } from './selectors';
 import { getDB, mutate, newId } from './store';
 import * as P from './permissions';
 import type {
@@ -13,8 +15,20 @@ import type {
   ID,
   MeetingTime,
   PostKind,
+  RsvpStatus,
   Slot,
 } from './types';
+import { SLOT_DAYS, slotRunsOn } from './types';
+
+/** Flex Time and Tiger Time only run on certain days. */
+function ensureSlotDays(meetings: MeetingTime[]) {
+  for (const m of meetings) {
+    ensure(
+      slotRunsOn(m.slot, m.day),
+      `${slotLabel(m.slot)} is only on ${SLOT_DAYS[m.slot]!.join(' and ')}s.`,
+    );
+  }
+}
 
 export class PermissionError extends Error {}
 
@@ -126,6 +140,20 @@ export function markRead(postIds: ID[]) {
   if (fresh.length === 0) return;
   mutate((d) => {
     d.reads[me] = [...(d.reads[me] ?? []), ...fresh];
+  });
+}
+
+/** Say whether you're coming to a meeting. Pass null to clear your answer. */
+export function setRsvp(clubId: ID, date: string, slot: Slot, status: RsvpStatus | null) {
+  const me = actor();
+  mutate((d) => {
+    ensure(P.canRsvp(d, me, clubId), 'Follow or join this club to RSVP.');
+    ensure(date >= todayISO(), 'That meeting already happened.');
+    ensure(meetingExists(d, clubId, date, slot), 'That meeting is cancelled or not on the schedule.');
+    d.rsvps = d.rsvps.filter(
+      (r) => !(r.userId === me && r.clubId === clubId && r.date === date && r.slot === slot),
+    );
+    if (status) d.rsvps.push({ userId: me, clubId, date, slot, status, at: now() });
   });
 }
 
@@ -273,6 +301,11 @@ export function createEvent(clubId: ID, input: EventInput) {
   mutate((d) => {
     ensure(P.canPost(d, me, clubId));
     ensure(/^\d{4}-\d{2}-\d{2}$/.test(input.date), 'Pick a date.');
+    const wd = weekdayOf(input.date);
+    ensure(
+      !wd || slotRunsOn(input.slot, wd),
+      `There is no ${slotLabel(input.slot)} on ${wd}s.`,
+    );
     const club = getClub(d, clubId);
     const ev: ClubEvent = {
       id: newId('e'),
@@ -296,10 +329,10 @@ export function createEvent(clubId: ID, input: EventInput) {
       });
       const verb =
         ev.kind === 'cancelled'
-          ? `Cancelled: ${when} ${ev.slot}`
+          ? `Cancelled: ${when} ${slotLabel(ev.slot)}`
           : ev.kind === 'moved'
-            ? `Moved: ${when} ${ev.slot} is in ${ev.room}`
-            : `Added: ${when} ${ev.slot} in ${ev.room}`;
+            ? `Moved: ${when} ${slotLabel(ev.slot)} is in ${ev.room}`
+            : `Added: ${when} ${slotLabel(ev.slot)} in ${ev.room}`;
       d.posts.push({
         id: newId('p'),
         clubId,
@@ -333,6 +366,7 @@ export function updateClubBasics(
   mutate((d) => {
     ensure(P.canManageClub(d, me, clubId));
     ensure(input.meetings.every((m) => m.room.trim()), 'Every meeting needs a room.');
+    ensureSlotDays(input.meetings);
     const c = getClub(d, clubId);
     c.description = input.description.trim();
     c.meetings = input.meetings.map((m) => ({ ...m, room: m.room.trim(), note: m.note?.trim() || undefined }));
@@ -402,6 +436,7 @@ export function createClub(input: ClubInput): ID {
   mutate((d) => {
     ensure(P.canCreateClub(d, me), 'Only administrators can create clubs.');
     ensure(input.name.trim().length > 0, 'Club name is required.');
+    ensureSlotDays(input.meetings);
     ensure(
       !d.clubs.some((c) => c.name.toLowerCase() === input.name.trim().toLowerCase()),
       'A club with that name already exists.',
@@ -433,7 +468,10 @@ export function updateClubAdmin(clubId: ID, input: Partial<ClubInput> & { archiv
     if (input.description !== undefined) c.description = input.description.trim();
     if (input.category !== undefined) c.category = input.category;
     if (input.advisor !== undefined) c.advisor = input.advisor.trim();
-    if (input.meetings !== undefined) c.meetings = input.meetings;
+    if (input.meetings !== undefined) {
+      ensureSlotDays(input.meetings);
+      c.meetings = input.meetings;
+    }
     if (input.hiddenMembership !== undefined) c.hiddenMembership = input.hiddenMembership;
     if (input.archived !== undefined) c.archived = input.archived;
     audit(d, me, 'Edited club', c.name);

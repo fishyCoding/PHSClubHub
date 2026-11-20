@@ -1,4 +1,5 @@
-import { SLOTS, WEEKDAYS, type MeetingTime, type Slot, type Weekday } from '../data/types';
+import { slotTitle } from '../data/dates';
+import { slotRunsOn, slotsOn, WEEKDAYS, type MeetingTime, type Slot, type Weekday } from '../data/types';
 
 /** Edit a list of regular meeting times ("Tuesday lunch in Room 204"). */
 export function MeetingsEditor({
@@ -16,7 +17,11 @@ export function MeetingsEditor({
         <div key={i} className="row" style={{ alignItems: 'flex-end' }}>
           <label className="field" style={{ width: 140 }}>
             <span>Day</span>
-            <select className="input" value={m.day} onChange={(e) => set(i, { day: e.target.value as Weekday })}>
+            <select className="input" value={m.day} onChange={(e) => {
+                const day = e.target.value as Weekday;
+                // Switching to a day without this period: fall back to lunch.
+                set(i, { day, slot: slotRunsOn(m.slot, day) ? m.slot : 'lunch' });
+              }}>
               {WEEKDAYS.map((d) => (
                 <option key={d}>{d}</option>
               ))}
@@ -25,8 +30,10 @@ export function MeetingsEditor({
           <label className="field" style={{ width: 150 }}>
             <span>Time</span>
             <select className="input" value={m.slot} onChange={(e) => set(i, { slot: e.target.value as Slot })}>
-              {SLOTS.map((s) => (
-                <option key={s}>{s}</option>
+              {slotsOn(m.day).map((s) => (
+                <option key={s} value={s}>
+                  {slotTitle(s)}
+                </option>
               ))}
             </select>
           </label>

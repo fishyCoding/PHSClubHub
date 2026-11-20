@@ -3,7 +3,8 @@ import { ClubCard } from '../components/ClubCard';
 import { useMe } from '../components/Layout';
 import { Empty } from '../components/ui';
 import { useDB } from '../data/store';
-import { CATEGORIES, SLOTS, WEEKDAYS, type Category, type Slot, type Weekday } from '../data/types';
+import { slotTitle } from '../data/dates';
+import { CATEGORIES, slotsOn, WEEKDAYS, type Category, type Slot, type Weekday } from '../data/types';
 
 export function Explore() {
   const db = useDB();
@@ -52,7 +53,11 @@ export function Explore() {
               aria-label="Search clubs"
             />
           </label>
-          <select className="input" style={{ width: 'auto' }} value={day} onChange={(e) => setDay(e.target.value as Weekday | '')} aria-label="Day">
+          <select className="input" style={{ width: 'auto' }} value={day} onChange={(e) => {
+            const d = e.target.value as Weekday | '';
+            setDay(d);
+            if (slot && !slotsOn(d || null).includes(slot)) setSlot('');
+          }} aria-label="Day">
             <option value="">Any day</option>
             {WEEKDAYS.map((d) => (
               <option key={d}>{d}</option>
@@ -60,9 +65,9 @@ export function Explore() {
           </select>
           <select className="input" style={{ width: 'auto' }} value={slot} onChange={(e) => setSlot(e.target.value as Slot | '')} aria-label="Time">
             <option value="">Any time</option>
-            {SLOTS.map((s) => (
+            {slotsOn(day || null).map((s) => (
               <option key={s} value={s}>
-                {s[0].toUpperCase() + s.slice(1)}
+                {slotTitle(s)}
               </option>
             ))}
           </select>
