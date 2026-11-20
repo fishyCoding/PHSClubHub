@@ -39,11 +39,6 @@ export function clubPostsFor(db: DB, userId: ID, clubId: ID): Post[] {
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt.localeCompare(a.createdAt));
 }
 
-export function unreadCount(db: DB, userId: ID): number {
-  const read = new Set(db.reads[userId] ?? []);
-  return feedFor(db, userId).filter((p) => !read.has(p.id)).length;
-}
-
 export function isRead(db: DB, userId: ID, postId: ID): boolean {
   return (db.reads[userId] ?? []).includes(postId);
 }

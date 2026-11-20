@@ -33,7 +33,7 @@ describe('pages render', () => {
     expect(await render('/', null)).toContain('Demo accounts');
   });
 
-  const student = ['/', '/explore', '/clubs/c-robotics', '/clubs/c-gsa', '/schedule', '/my-clubs', '/lead', '/lead/c-robotics', '/nope'];
+  const student = ['/', '/inbox', '/explore', '/clubs/c-robotics', '/clubs/c-gsa', '/schedule', '/my-clubs', '/lead', '/lead/c-robotics', '/nope'];
   for (const path of student) {
     it(`student leader ${path}`, async () => {
       const text = await render(path, 'u-maya');
@@ -51,7 +51,7 @@ describe('pages render', () => {
     expect(text).not.toContain('Members0');
   });
 
-  const admin = ['/admin', '/admin/clubs', '/admin/clubs?new=1', '/admin/leaders', '/admin/moderation', '/admin/attendance', '/lead/c-chess', '/explore', '/clubs/c-mind'];
+  const admin = ['/admin', '/inbox', '/admin/clubs', '/admin/clubs?new=1', '/admin/leaders', '/admin/moderation', '/admin/attendance', '/lead/c-chess', '/explore', '/clubs/c-mind'];
   for (const path of admin) {
     it(`admin ${path}`, async () => {
       expect(await render(path, 'u-admin')).toContain('Club Hub');

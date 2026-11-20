@@ -11,6 +11,7 @@ import { AdminModeration } from './pages/admin/AdminModeration';
 import { ClubPage } from './pages/ClubPage';
 import { Explore } from './pages/Explore';
 import { Home } from './pages/Home';
+import { Inbox } from './pages/Inbox';
 import { LeadClub, LeadIndex } from './pages/lead/LeadClub';
 import { Login } from './pages/Login';
 import { MyClubs } from './pages/MyClubs';
@@ -34,6 +35,7 @@ function AppRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<StudentOnly><Home /></StudentOnly>} />
+        <Route path="inbox" element={<Inbox />} />
         <Route path="explore" element={<Explore />} />
         <Route path="clubs/:clubId" element={<ClubPage />} />
         <Route path="schedule" element={<StudentOnly><Schedule /></StudentOnly>} />

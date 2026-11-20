@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import * as A from '../data/actions';
 import * as P from '../data/permissions';
-import { unreadCount } from '../data/selectors';
+import { inboxUnreadCount } from '../data/inbox';
 import { resetDemoData, useDB } from '../data/store';
 import type { User } from '../data/types';
-import { Avatar, Modal, useToast } from './ui';
+import { Avatar, Icon, type IconName, Modal, useToast } from './ui';
 
 export function useMe(): User {
   const db = useDB();
@@ -17,6 +17,7 @@ export function useMe(): User {
 interface NavItem {
   to: string;
   label: string;
+  icon: IconName;
   count?: number;
   end?: boolean;
 }
@@ -30,7 +31,7 @@ export function Layout() {
 
   const admin = me.role === 'admin';
   const leads = P.leadsAnyClub(db, me.id);
-  const unread = unreadCount(db, me.id);
+  const unread = inboxUnreadCount(db, me.id);
   const openReports = db.reports.filter((r) => r.status === 'open').length;
   const pendingLeaders = db.leaderRequests.filter((r) => r.status === 'pending').length;
   const pendingJoins = P.clubsLedBy(db, me.id).reduce(
@@ -40,19 +41,19 @@ export function Layout() {
 
   const items: NavItem[] = admin
     ? [
-        { to: '/admin', label: 'Dashboard', end: true },
-        { to: '/admin/clubs', label: 'Clubs' },
-        { to: '/admin/leaders', label: 'Leaders', count: pendingLeaders },
-        { to: '/admin/moderation', label: 'Moderation', count: openReports },
-        { to: '/admin/attendance', label: 'Attendance' },
-        { to: '/explore', label: 'Explore' },
+        { to: '/admin', label: 'Dashboard', icon: 'grid', end: true },
+        { to: '/admin/clubs', label: 'Clubs', icon: 'users' },
+        { to: '/admin/leaders', label: 'Leaders', icon: 'shield', count: pendingLeaders },
+        { to: '/admin/moderation', label: 'Moderation', icon: 'flag', count: openReports },
+        { to: '/admin/attendance', label: 'Attendance', icon: 'chart' },
+        { to: '/explore', label: 'Explore', icon: 'compass' },
       ]
     : [
-        { to: '/', label: 'Home', count: unread, end: true },
-        { to: '/explore', label: 'Explore' },
-        { to: '/schedule', label: 'Schedule' },
-        { to: '/my-clubs', label: 'My Clubs' },
-        ...(leads ? [{ to: '/lead', label: 'Lead', count: pendingJoins }] : []),
+        { to: '/', label: 'Home', icon: 'home', end: true },
+        { to: '/explore', label: 'Explore', icon: 'compass' },
+        { to: '/schedule', label: 'Schedule', icon: 'calendar' },
+        { to: '/my-clubs', label: 'My Clubs', icon: 'users' },
+        ...(leads ? [{ to: '/lead', label: 'Lead', icon: 'star' as IconName, count: pendingJoins }] : []),
       ];
 
   return (
@@ -66,12 +67,22 @@ export function Layout() {
           <nav className="nav" aria-label="Main">
             {items.map((it) => (
               <NavLink key={it.to} to={it.to} end={it.end}>
+                <Icon name={it.icon} size={17} />
                 {it.label}
                 {!!it.count && <span className="count">{it.count}</span>}
               </NavLink>
             ))}
           </nav>
           <div className="usermenu">
+            <NavLink
+              to="/inbox"
+              className="inbox-btn"
+              aria-label={unread ? `Inbox, ${unread} unread` : 'Inbox'}
+              title="Inbox"
+            >
+              <Icon name="inbox" size={20} />
+              {unread > 0 && <span className="count dot">{unread > 99 ? '99+' : unread}</span>}
+            </NavLink>
             <button
               className="btn btn-ghost btn-sm"
               onClick={() => setMenu(true)}
@@ -92,6 +103,7 @@ export function Layout() {
       <nav className="bottomnav" aria-label="Main">
         {items.slice(0, 5).map((it) => (
           <NavLink key={it.to} to={it.to} end={it.end}>
+            <Icon name={it.icon} size={22} />
             {it.label}
             {!!it.count && <span className="count dot">{it.count}</span>}
           </NavLink>

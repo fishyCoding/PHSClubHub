@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMe } from '../../components/Layout';
 import { ClubIcon, Empty, Tabs } from '../../components/ui';
 import * as P from '../../data/permissions';
@@ -63,7 +63,11 @@ export function LeadClub() {
   const { clubId } = useParams();
   const db = useDB();
   const me = useMe();
-  const [tab, setTab] = useState<Tab>('posts');
+  const [params] = useSearchParams();
+  const initial = params.get('tab') as Tab | null;
+  const [tab, setTab] = useState<Tab>(
+    initial && ['posts', 'schedule', 'attendance', 'members', 'info'].includes(initial) ? initial : 'posts',
+  );
   const club = clubById(db, clubId);
   if (!club) return <NotFound what="club" />;
   if (!P.canManageClub(db, me.id, club.id)) {

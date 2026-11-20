@@ -2,20 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMe } from '../components/Layout';
 import { AudienceBadge } from '../components/PostCard';
-import { ClubIcon, Empty, Segmented } from '../components/ui';
+import { ClubIcon, Empty, Icon } from '../components/ui';
 import * as A from '../data/actions';
 import { formatDate, timeAgo, todayISO } from '../data/dates';
 import * as P from '../data/permissions';
+import { inboxUnread } from '../data/inbox';
 import { clubById, feedFor, myClubIds, scheduleFor, userById } from '../data/selectors';
 import { useDB } from '../data/store';
 import type { Post } from '../data/types';
 
-type Filter = 'all' | 'private' | 'schedule';
-
 export function Home() {
   const db = useDB();
   const me = useMe();
-  const [filter, setFilter] = useState<Filter>('all');
   const feed = feedFor(db, me.id);
 
   // Remember which posts were unread when the page opened, then mark them read.
@@ -28,13 +26,9 @@ export function Home() {
     return () => clearTimeout(t);
   }, [unreadAtOpen]);
 
-  const shown = feed.filter((p) =>
-    filter === 'private'
-      ? p.audience.type !== 'public'
-      : filter === 'schedule'
-        ? p.kind === 'schedule'
-        : true,
-  );
+  const shown = feed.slice(0, 15);
+  // Non-post activity (approvals, requests, …) lives in the inbox.
+  const otherUnread = inboxUnread(db, me.id).filter((i) => i.group !== 'updates').length;
 
   const today = todayISO();
   const upcoming = useMemo(
@@ -42,7 +36,7 @@ export function Home() {
     [db, me.id, today],
   );
   const mine = myClubIds(db, me.id);
-  const privateCount = feed.filter((p) => p.audience.type !== 'public' && unreadAtOpen.has(p.id)).length;
+  const nextUp = upcoming.find((s) => s.status !== 'cancelled');
 
   return (
     <div className="two-col">
@@ -54,19 +48,23 @@ export function Home() {
               {unreadAtOpen.size > 0
                 ? `${unreadAtOpen.size} new update${unreadAtOpen.size === 1 ? '' : 's'} from your clubs`
                 : 'You are all caught up'}
-              {privateCount > 0 && ` · ${privateCount} private`}
+              {nextUp &&
+                ` · Next: ${clubById(db, nextUp.clubId)?.name}, ${nextUp.date === today ? 'today' : formatDate(nextUp.date)} ${nextUp.slot}`}
             </p>
           </div>
-          <Segmented<Filter>
-            value={filter}
-            onChange={setFilter}
-            options={[
-              { id: 'all', label: 'All' },
-              { id: 'private', label: 'Private' },
-              { id: 'schedule', label: 'Schedule' },
-            ]}
-          />
         </div>
+
+        {otherUnread > 0 && (
+          <Link to="/inbox" className="callout inbox-nudge">
+            <Icon name="inbox" />
+            <span>
+              <span className="strong">{otherUnread} new in your inbox</span>
+              <span className="muted"> · requests and approvals</span>
+            </span>
+            <span className="spacer" />
+            <span aria-hidden="true">→</span>
+          </Link>
+        )}
 
         {mine.joined.length + mine.following.length === 0 ? (
           <div className="card">
@@ -84,7 +82,14 @@ export function Home() {
             <Empty title="Nothing here yet" />
           </div>
         ) : (
-          shown.map((p) => <FeedItem key={p.id} post={p} isNew={unreadAtOpen.has(p.id)} />)
+          <>
+            {shown.map((p) => <FeedItem key={p.id} post={p} isNew={unreadAtOpen.has(p.id)} />)}
+            {feed.length > shown.length && (
+              <Link to="/inbox" className="btn btn-block">
+                See older updates in your inbox
+              </Link>
+            )}
+          </>
         )}
       </section>
 
