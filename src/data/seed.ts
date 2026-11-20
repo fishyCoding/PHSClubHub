@@ -2,6 +2,7 @@
 // so the prototype always looks current.
 
 import { addDays, mondayOf, todayISO, weekdayOf } from './dates';
+import { attendanceItemId } from './inbox';
 import { scheduleForClubs } from './selectors';
 import type {
   AttendanceSession,
@@ -17,7 +18,7 @@ import type {
   User,
 } from './types';
 
-export const DB_VERSION = 6;
+export const DB_VERSION = 8;
 
 function hoursAgo(h: number): string {
   return new Date(Date.now() - h * 3600_000).toISOString();
@@ -324,32 +325,51 @@ const events: ClubEvent[] = [
   },
 ];
 
-// Attendance: past 6 weeks of regular meetings for each club.
+// Attendance: past 12 weeks of regular meetings for each club.
 // Chess deliberately has none recently, so the admin "needs attention" flag shows up.
+// Robotics is growing and Coding Club is fading, so the stats page has a story to tell.
 function buildAttendance(): AttendanceSession[] {
   const out: AttendanceSession[] = [];
   const rand = rng(42);
   const turnout: Record<string, number> = {
-    'c-robotics': 0.88, 'c-debate': 0.8, 'c-mun': 0.7, 'c-enviro': 0.6,
-    'c-art': 0.75, 'c-code': 0.65, 'c-gsa': 0.85, 'c-mind': 0.7, 'c-paper': 0.55, 'c-key': 0.5,
+    'c-robotics': 0.78, 'c-debate': 0.8, 'c-mun': 0.7, 'c-enviro': 0.6,
+    'c-art': 0.75, 'c-code': 0.7, 'c-gsa': 0.85, 'c-mind': 0.7, 'c-paper': 0.55, 'c-key': 0.5,
   };
+  // Change in turnout from the first to the last week.
+  const trend: Record<string, number> = { 'c-robotics': 0.25, 'c-code': -0.35, 'c-enviro': 0.15 };
+  // Some students are more reliable than others.
+  const habit = new Map(users.map((u) => [u.id, 0.75 + rand() * 0.4]));
+  // Omar has stopped coming to Robotics lately (shows up as "missed the last few").
+  const slumps: Record<string, string> = { 'c-robotics': 'u-omar' };
   let n = 0;
   for (const club of clubs) {
     if (club.archived) continue;
-    const rate = turnout[club.id];
-    const start = addDays(today, club.id === 'c-chess' ? -70 : -42);
+    const base = turnout[club.id] ?? 0.6;
+    const start = addDays(today, club.id === 'c-chess' ? -70 : -84);
     const end = club.id === 'c-chess' ? addDays(today, -45) : addDays(today, -1);
+    const span = Math.max(1, (parseISO(end) - parseISO(start)) / 86_400_000);
     for (let d = start; d <= end; d = addDays(d, 1)) {
       const wd = weekdayOf(d);
       if (!wd || !club.meetings.some((m) => m.day === wd)) continue;
+      const progress = (parseISO(d) - parseISO(start)) / 86_400_000 / span; // 0 -> 1
+      const rate = base + (trend[club.id] ?? 0) * (progress - 0.5);
       const members = memberships
         .filter((m) => m.clubId === club.id && m.status === 'active')
         .map((m) => m.userId);
-      const present = members.filter(() => rand() < (rate ?? 0.6));
+      const present = members.filter((u) => {
+        if (slumps[club.id] === u && progress > 0.75) return false;
+        return rand() < Math.min(0.98, rate * (habit.get(u) ?? 1));
+      });
+      // Leave Robotics' most recent meeting unrecorded so the demo can take it live.
+      if (club.id === 'c-robotics' && d >= addDays(today, -3)) {
+        rand(); // keep the random sequence identical for everything after
+        continue;
+      }
       out.push({
         id: `a-${n++}`,
         clubId: club.id,
         date: d,
+        slot: club.meetings.find((m) => m.day === wd)?.slot,
         rosterUserIds: members,
         presentUserIds: present,
         guestCount: Math.floor(rand() * 3),
@@ -359,6 +379,10 @@ function buildAttendance(): AttendanceSession[] {
     }
   }
   return out;
+}
+
+function parseISO(d: string): number {
+  return new Date(d + 'T12:00:00').getTime();
 }
 
 const leaderRequests: LeaderRequest[] = [
@@ -393,6 +417,19 @@ function buildRsvps(db: DB): Rsvp[] {
       if (status) out.push({ userId: m.userId, clubId: item.clubId, date: item.date, slot: item.slot, status, at: hoursAgo(rand() * 48) });
     }
   }
+  // Past meetings: most people who show up said so; a few said yes and didn't come.
+  for (const a of db.attendance) {
+    if (a.date < addDays(today, -35)) continue;
+    const club = db.clubs.find((c) => c.id === a.clubId);
+    const slot = club?.meetings.find((m) => m.day === weekdayOf(a.date))?.slot;
+    if (!slot) continue;
+    for (const u of a.rosterUserIds) {
+      const came = a.presentUserIds.includes(u);
+      const x = rand();
+      const status = came ? (x < 0.75 ? 'going' : x < 0.85 ? 'maybe' : null) : x < 0.25 ? 'going' : x < 0.65 ? 'not_going' : null;
+      if (status) out.push({ userId: u, clubId: a.clubId, date: a.date, slot, status, at: `${addDays(a.date, -1)}T18:00:00.000Z` });
+    }
+  }
   return out;
 }
 
@@ -414,5 +451,11 @@ export function createSeed(): DB {
     sessionUserId: null,
   };
   db.rsvps = buildRsvps(db);
+  // Only the last couple of days of attendance show as new notifications.
+  const cutoff = addDays(today, -2);
+  for (const s of db.attendance) {
+    if (s.date >= cutoff) continue;
+    for (const u of s.rosterUserIds) (db.reads[u] ??= []).push(attendanceItemId(s));
+  }
   return db;
 }

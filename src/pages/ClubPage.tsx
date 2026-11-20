@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { ClubBanner } from '../components/ClubBanner';
 import { RelationBadge } from '../components/ClubCard';
 import { useMe } from '../components/Layout';
 import { PostCard } from '../components/PostCard';
 import { RsvpButtons, RsvpCount } from '../components/Rsvp';
 import {
   Avatar,
-  ClubIcon,
   ConfirmButton,
   Empty,
   matchesQuery,
@@ -49,35 +49,35 @@ export function ClubPage() {
 
   return (
     <div className="stack-lg">
-      <div className="card hero">
-        <ClubIcon club={club} size="lg" />
-        <div className="stack" style={{ flex: 1, gap: 8, minWidth: 0 }}>
-          <div className="row">
-            <h1>{club.name}</h1>
+      <ClubBanner
+        club={club}
+        badges={
+          <>
             <RelationBadge clubId={club.id} userId={me.id} />
             {club.archived && <span className="badge danger">Archived</span>}
-          </div>
-          <div className="row muted small">
-            <span className="badge">{club.category}</span>
+          </>
+        }
+        meta={
+          <>
+            <span>{club.category}</span>
             <span>Advisor: {club.advisor}</span>
-            <span>·</span>
-            <span>
-              {club.hiddenMembership ? 'Private membership' : `${activeMembers(db, club.id).length} members`}
-            </span>
-            <span>·</span>
+            <span>{club.hiddenMembership ? 'Private membership' : `${activeMembers(db, club.id).length} members`}</span>
             <span>{followerCount(db, club.id)} followers</span>
-          </div>
-          <p>{club.description}</p>
-          <div className="row" style={{ marginTop: 4 }}>
+          </>
+        }
+        actions={
+          <>
             {!admin && <MembershipButtons club={club} />}
             {(leader || admin) && (
               <Link to={`/lead/${club.id}`} className="btn btn-primary">
                 Manage club
               </Link>
             )}
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      >
+        <p>{club.description}</p>
+      </ClubBanner>
 
       <div className="two-col">
         <div>

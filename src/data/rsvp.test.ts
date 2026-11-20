@@ -54,6 +54,7 @@ describe('RSVP', () => {
 
   it('seed data gives leaders some headcounts to look at', () => {
     expect(getDB().rsvps.length).toBeGreaterThan(0);
-    expect(getDB().rsvps.some((r) => r.userId === 'u-priya')).toBe(false);
+    // Upcoming meetings are left blank for the demo users to answer live.
+    expect(getDB().rsvps.some((r) => r.userId === 'u-priya' && r.date >= todayISO())).toBe(false);
   });
 });

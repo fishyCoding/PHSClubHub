@@ -33,13 +33,17 @@ describe('pages render', () => {
     expect(await render('/', null)).toContain('Demo accounts');
   });
 
-  const student = ['/', '/inbox', '/explore', '/clubs/c-robotics', '/clubs/c-gsa', '/schedule', '/my-clubs', '/lead', '/lead/c-robotics', '/nope'];
+  const student = ['/', '/inbox', '/explore', '/clubs/c-robotics', '/clubs/c-gsa', '/schedule', '/my-clubs', '/lead', '/lead/c-robotics', '/stats', '/stats/c-robotics', '/nope'];
   for (const path of student) {
     it(`student leader ${path}`, async () => {
       const text = await render(path, 'u-maya');
       expect(text).toContain('Club Hub');
     });
   }
+
+  it('regular student cannot see club stats', async () => {
+    expect(await render('/stats/c-robotics', 'u-priya')).toContain('Leaders only');
+  });
 
   it('regular student cannot open leader tools', async () => {
     expect(await render('/lead/c-robotics', 'u-priya')).toContain('Leaders only');
@@ -51,7 +55,7 @@ describe('pages render', () => {
     expect(text).not.toContain('Members0');
   });
 
-  const admin = ['/admin', '/inbox', '/admin/clubs', '/admin/clubs?new=1', '/admin/leaders', '/admin/moderation', '/admin/attendance', '/lead/c-chess', '/explore', '/clubs/c-mind'];
+  const admin = ['/admin', '/inbox', '/admin/clubs', '/admin/clubs?new=1', '/admin/leaders', '/admin/moderation', '/admin/attendance', '/stats/c-code', '/lead/c-chess', '/explore', '/clubs/c-mind'];
   for (const path of admin) {
     it(`admin ${path}`, async () => {
       expect(await render(path, 'u-admin')).toContain('Club Hub');

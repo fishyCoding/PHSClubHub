@@ -379,17 +379,21 @@ export function saveAttendance(
   date: string,
   presentUserIds: ID[],
   guestCount: number,
+  slot?: Slot,
 ) {
   const me = actor();
   mutate((d) => {
     ensure(P.canTakeAttendance(d, me, clubId), 'Only leaders can take attendance.');
     ensure(/^\d{4}-\d{2}-\d{2}$/.test(date), 'Pick a date.');
+    ensure(date <= todayISO(), "You can't take attendance for a meeting that hasn't happened yet.");
     const roster = d.memberships
       .filter((m) => m.clubId === clubId && m.status === 'active')
       .map((m) => m.userId);
     const present = presentUserIds.filter((u) => roster.includes(u));
-    const existing = d.attendance.find((a) => a.clubId === clubId && a.date === date);
+    // Saving changes members' inbox notifications (they're keyed on takenAt).
+    const existing = d.attendance.find((a) => sameSession(a, clubId, date, slot));
     if (existing) {
+      if (slot) existing.slot = slot;
       existing.presentUserIds = present;
       existing.rosterUserIds = roster;
       existing.guestCount = Math.max(0, Math.floor(guestCount));
@@ -400,6 +404,7 @@ export function saveAttendance(
         id: newId('a'),
         clubId,
         date,
+        slot,
         presentUserIds: present,
         rosterUserIds: roster,
         guestCount: Math.max(0, Math.floor(guestCount)),
@@ -408,6 +413,11 @@ export function saveAttendance(
       });
     }
   });
+}
+
+/** Same club and day, and the same meeting if both records say which one. */
+export function sameSession(a: { clubId: ID; date: string; slot?: Slot }, clubId: ID, date: string, slot?: Slot) {
+  return a.clubId === clubId && a.date === date && (!a.slot || !slot || a.slot === slot);
 }
 
 export function deleteAttendance(sessionId: ID) {

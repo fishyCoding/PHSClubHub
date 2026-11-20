@@ -2,10 +2,18 @@
 // from existing data (no separate notifications table), so they can never get
 // out of sync. Read state reuses db.reads, keyed by each item's id.
 
-import { addDays, todayISO } from './dates';
+import { addDays, formatDate, slotLabel, todayISO } from './dates';
 import * as P from './permissions';
 import { clubById, feedFor, userById } from './selectors';
-import type { DB, ID } from './types';
+import type { AttendanceSession, DB, ID } from './types';
+
+/** How long attendance notifications stay in the inbox. */
+export const ATTENDANCE_WINDOW_DAYS = 14;
+
+/** Changes whenever the roll is re-saved, so an edit shows up as a new notification. */
+export function attendanceItemId(s: Pick<AttendanceSession, 'id' | 'takenAt'>) {
+  return `att:${s.id}:${s.takenAt}`;
+}
 
 export type InboxKind =
   | 'post' // update from a club you follow or belong to
@@ -14,6 +22,7 @@ export type InboxKind =
   | 'membership' // your join request was approved, or you were made a leader
   | 'leader-request' // your leader request was decided
   | 'moderation' // your post was removed
+  | 'attendance' // a leader marked you present or absent
   | 'join-request' // (leaders) someone wants to join your club
   | 'admin-leader' // (admins) a student asked to be verified as a leader
   | 'admin-report'; // (admins) a post was reported
@@ -33,6 +42,8 @@ export interface InboxItem {
   to: string;
   /** Related record id (e.g. the membership behind a join request). */
   ref?: ID;
+  /** Attendance notifications: were you there? */
+  present?: boolean;
   /** Still needs someone to do something (stays visible until handled). */
   needsAction?: boolean;
 }
@@ -114,6 +125,25 @@ export function inboxFor(db: DB, userId: ID): InboxItem[] {
       title: `Your post "${p.title}" was removed`,
       body: p.removed.reason,
       to: `/lead/${p.clubId}`,
+    });
+  }
+
+  // Attendance: you were marked present or absent.
+  const attSince = addDays(todayISO(), -ATTENDANCE_WINDOW_DAYS);
+  for (const s of db.attendance) {
+    if (!s.rosterUserIds.includes(userId) || s.takenBy === userId || s.date < attSince) continue;
+    const here = s.presentUserIds.includes(userId);
+    const when = `${formatDate(s.date)}${s.slot ? ` ${slotLabel(s.slot)}` : ''}`;
+    items.push({
+      id: attendanceItemId(s),
+      kind: 'attendance',
+      group: 'activity',
+      at: s.takenAt,
+      clubId: s.clubId,
+      title: here ? `You were marked present · ${when}` : `You were marked absent · ${when}`,
+      body: here ? undefined : "If you were there, let a club leader know so they can fix it.",
+      to: `/clubs/${s.clubId}`,
+      present: here,
     });
   }
 

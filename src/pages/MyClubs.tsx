@@ -22,8 +22,16 @@ export function MyClubs() {
   const Section = ({ title, ids, kind }: { title: string; ids: ID[]; kind: 'joined' | 'pending' | 'following' }) => (
     <div className="card card-flush">
       <div className="card-section row-between">
-        <h3 style={{ margin: 0 }}>{title}</h3>
-        <span className="muted small">{ids.length}</span>
+        <h3 style={{ margin: 0 }}>
+          {title} <span className="muted small">{ids.length}</span>
+        </h3>
+        <span className="muted tiny">
+          {kind === 'joined'
+            ? 'You get every announcement and message'
+            : kind === 'pending'
+              ? 'A leader needs to approve you'
+              : 'You get public announcements only'}
+        </span>
       </div>
       {ids.length === 0 ? (
         <div className="card-section muted small">
@@ -42,13 +50,23 @@ export function MyClubs() {
             <div key={id} className="list-item">
               <ClubIcon club={c} />
               <Link to={`/clubs/${id}`} style={{ flex: 1, color: 'inherit', minWidth: 0 }}>
-                <div className="strong">{c.name}</div>
-                <div className="tiny muted">{c.meetings.map(describeMeeting).join(' · ') || 'No regular meeting'}</div>
+                <div className="row" style={{ gap: 8 }}>
+                  <span className="strong">{c.name}</span>
+                  {leader && <span className="role-tag leader">Leader</span>}
+                </div>
+                <div className="tiny muted">
+                  {c.category} · {c.meetings.map(describeMeeting).join(' · ') || 'No regular meeting'}
+                </div>
               </Link>
               {leader && (
-                <Link to={`/lead/${id}`} className="btn btn-sm btn-primary">
-                  Manage
-                </Link>
+                <>
+                  <Link to={`/stats/${id}`} className="btn btn-sm">
+                    Stats
+                  </Link>
+                  <Link to={`/lead/${id}`} className="btn btn-sm btn-primary">
+                    Manage
+                  </Link>
+                </>
               )}
               {kind === 'pending' && (
                 <button className="btn btn-sm" onClick={() => run(() => A.leaveClub(id), 'Request cancelled')}>
@@ -56,7 +74,7 @@ export function MyClubs() {
                 </button>
               )}
               {kind === 'following' && (
-                <button className="btn btn-sm" onClick={() => run(() => A.unfollow(id), 'Unfollowed')}>
+                <button className="btn btn-sm btn-ghost" onClick={() => run(() => A.unfollow(id), 'Unfollowed')}>
                   Unfollow
                 </button>
               )}

@@ -17,6 +17,7 @@ import { Login } from './pages/Login';
 import { MyClubs } from './pages/MyClubs';
 import { NotFound } from './pages/NotFound';
 import { Schedule } from './pages/Schedule';
+import { Stats } from './pages/Stats';
 
 function AdminOnly({ children }: { children: JSX.Element }) {
   const db = useDB();
@@ -40,6 +41,8 @@ function AppRoutes() {
         <Route path="clubs/:clubId" element={<ClubPage />} />
         <Route path="schedule" element={<StudentOnly><Schedule /></StudentOnly>} />
         <Route path="my-clubs" element={<StudentOnly><MyClubs /></StudentOnly>} />
+        <Route path="stats" element={<Stats />} />
+        <Route path="stats/:clubId" element={<Stats />} />
         <Route path="lead" element={<LeadIndex />} />
         <Route path="lead/:clubId" element={<LeadClub />} />
         <Route path="admin" element={<AdminOnly><AdminDashboard /></AdminOnly>} />

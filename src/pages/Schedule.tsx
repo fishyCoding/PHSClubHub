@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMe } from '../components/Layout';
 import { RsvpButtons, RsvpCount } from '../components/Rsvp';
-import { Empty, Segmented } from '../components/ui';
+import { clubColor, Empty, Segmented } from '../components/ui';
 import { addDays, formatDate, slotLabel, todayISO } from '../data/dates';
 import { clubById, myClubIds, scheduleFor, thisWeekStart } from '../data/selectors';
 import { useDB } from '../data/store';
@@ -66,10 +66,10 @@ export function Schedule() {
               const date = addDays(weekStart, i);
               const dayItems = items.filter((s) => s.date === date);
               return (
-                <div key={wd} className={`day${date === today ? ' today' : ''}`}>
+                <div key={wd} className={`day${date === today ? ' today' : ''}${date < today ? ' past' : ''}`}>
                   <div className="day-head">
                     <span>{wd}</span>
-                    <span className="muted tiny">{formatDate(date, { weekday: undefined })}</span>
+                    <span className="muted tiny">{date === today ? 'Today' : formatDate(date, { weekday: undefined })}</span>
                   </div>
                   {dayItems.length === 0 && <span className="muted tiny">No meetings</span>}
                   {dayItems.map((s, j) => {
@@ -78,6 +78,7 @@ export function Schedule() {
                       <div
                         key={j}
                         className={`slot ${s.relation === 'following' ? 'following' : ''} ${s.status}`}
+                        style={{ borderLeftColor: clubColor(club) }}
                       >
                         <span className="slot-label">{slotLabel(s.slot)}</span>
                         <Link to={`/clubs/${club.id}`} className="strong text">
@@ -85,8 +86,9 @@ export function Schedule() {
                         </Link>
                         <span className="muted">{s.room}</span>
                         {s.status === 'cancelled' && <span className="badge danger">Cancelled</span>}
-                        {s.status === 'moved' && <span className="badge warn">Room change</span>}
-                        {s.status === 'extra' && <span className="badge info">{s.title}</span>}
+                        {s.status === 'moved' && <span className="badge warn">Room changed</span>}
+                        {s.status === 'extra' && <span className="badge info">Extra · {s.title}</span>}
+                        {s.relation === 'following' && <span className="tiny muted">Following</span>}
                         {s.note && <span className="tiny muted">{s.note}</span>}
                         <RsvpCount clubId={s.clubId} date={s.date} slot={s.slot} />
                         <div style={{ marginTop: 4 }}>
@@ -105,12 +107,20 @@ export function Schedule() {
               );
             })}
           </div>
-          <div className="row small muted">
-            <span className="badge" style={{ borderLeft: '3px solid var(--accent)' }}>Joined</span>
-            <span className="badge" style={{ borderLeft: '3px solid var(--muted)' }}>Following</span>
-            <span className="badge danger">Cancelled</span>
-            <span className="badge warn">Room change</span>
-            <span className="badge info">Extra event</span>
+          <div className="schedule-legend">
+            <span>Each card is coloured by club.</span>
+            <span>
+              <span className="legend-swatch faded" /> Faded = clubs you follow
+            </span>
+            <span>
+              <span className="badge danger">Cancelled</span>
+            </span>
+            <span>
+              <span className="badge warn">Room changed</span>
+            </span>
+            <span>
+              <span className="badge info">Extra meeting</span>
+            </span>
           </div>
         </>
       )}

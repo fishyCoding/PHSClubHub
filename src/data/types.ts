@@ -138,6 +138,8 @@ export interface AttendanceSession {
   id: ID;
   clubId: ID;
   date: string; // YYYY-MM-DD
+  /** Which meeting that day (optional for older records). */
+  slot?: Slot;
   presentUserIds: ID[];
   /** Members who were active at the time the session was taken (denominator). */
   rosterUserIds: ID[];

@@ -18,6 +18,7 @@ const KIND: Record<InboxKind, { icon: IconName; label: string }> = {
   membership: { icon: 'check', label: 'Membership' },
   'leader-request': { icon: 'shield', label: 'Leader request' },
   moderation: { icon: 'alert', label: 'Moderation' },
+  attendance: { icon: 'check', label: 'Attendance' },
   'join-request': { icon: 'userPlus', label: 'Join request' },
   'admin-leader': { icon: 'shield', label: 'Needs verification' },
   'admin-report': { icon: 'flag', label: 'Report' },
@@ -149,9 +150,13 @@ function InboxRow({ item, unread }: { item: InboxItem; unread: boolean }) {
           {post ? (
             <PostTypeTag post={post} viewerId={me.id} />
           ) : (
-            <span className={`type-tag ${item.needsAction ? 'action' : 'activity'}`}>
-              <Icon name={k.icon} size={13} />
-              {k.label}
+            <span
+              className={`type-tag ${
+                item.kind === 'attendance' ? (item.present ? 'present' : 'absent') : item.needsAction ? 'action' : 'activity'
+              }`}
+            >
+              <Icon name={item.kind === 'attendance' && !item.present ? 'x' : k.icon} size={13} />
+              {item.kind === 'attendance' ? (item.present ? 'Present' : 'Absent') : k.label}
             </span>
           )}
         </div>

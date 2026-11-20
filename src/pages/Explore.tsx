@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ClubCard } from '../components/ClubCard';
 import { useMe } from '../components/Layout';
 import { Empty } from '../components/ui';
+import { myClubIds } from '../data/selectors';
 import { useDB } from '../data/store';
 import { slotTitle } from '../data/dates';
 import { CATEGORIES, slotsOn, WEEKDAYS, type Category, type Slot, type Weekday } from '../data/types';
@@ -30,6 +31,18 @@ export function Explore() {
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const filtered = !!(q || cat || day || slot);
+
+  // Suggestions: clubs you're not in yet, in categories you already like.
+  const mine = myClubIds(db, me.id);
+  const taken = new Set([...mine.joined, ...mine.pending, ...mine.following]);
+  const likedCats = new Set([...taken].map((id) => db.clubs.find((c) => c.id === id)?.category));
+  const suggested =
+    me.role === 'student' && taken.size > 0
+      ? db.clubs
+          .filter((c) => !c.archived && !taken.has(c.id) && likedCats.has(c.category))
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .slice(0, 3)
+      : [];
 
   return (
     <div className="stack-lg">
@@ -101,6 +114,23 @@ export function Explore() {
             Clear filters
           </button>
         </div>
+      )}
+
+      {!filtered && suggested.length > 0 && (
+        <section className="stack" style={{ gap: 8 }}>
+          <div className="section-head">
+            <h2>Suggested for you</h2>
+            <span className="muted small">Based on clubs you already follow</span>
+          </div>
+          <div className="grid grid-cards">
+            {suggested.map((c) => (
+              <ClubCard key={c.id} club={c} userId={me.id} />
+            ))}
+          </div>
+          <div className="section-head" style={{ marginTop: 12 }}>
+            <h2>All clubs</h2>
+          </div>
+        </section>
       )}
 
       {clubs.length === 0 ? (

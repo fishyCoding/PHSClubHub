@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { Club, User } from '../data/types';
+import type { Category, Club, User } from '../data/types';
 
 // ---------------------------------------------------------------- toasts
 
@@ -232,9 +232,29 @@ export function Avatar({ user, size }: { user: Pick<User, 'id' | 'name'>; size?:
   );
 }
 
-export function ClubIcon({ club, size }: { club: Pick<Club, 'name'>; size?: 'lg' }) {
+/** One colour per category, so clubs are easy to tell apart at a glance. */
+export const CATEGORY_COLORS: Record<Category, string> = {
+  Academic: '#2563eb',
+  STEM: '#0f766e',
+  Arts: '#c0267a',
+  Service: '#15803d',
+  'Culture & Identity': '#7c3aed',
+  Wellness: '#b45309',
+  'Games & Hobbies': '#c2410c',
+  Media: '#475569',
+};
+
+export function clubColor(club: Partial<Pick<Club, 'category'>>): string {
+  return (club.category && CATEGORY_COLORS[club.category]) || '#0a0a0a';
+}
+
+export function ClubIcon({ club, size }: { club: Pick<Club, 'name'> & Partial<Pick<Club, 'category'>>; size?: 'lg' }) {
   return (
-    <span className={`club-icon${size ? ' ' + size : ''}`} aria-hidden="true">
+    <span
+      className={`club-icon${size ? ' ' + size : ''}`}
+      aria-hidden="true"
+      style={{ background: clubColor(club) }}
+    >
       {initials(club.name)}
     </span>
   );
@@ -291,6 +311,7 @@ const ICONS = {
   pin: 'M9 3h6l-1 6 4 4H6l4-4zM12 13v8',
   plus: 'M12 5v14M5 12h14',
   x: 'M6 6l12 12M18 6L6 18',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17.5v.5',
   sun: 'M12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4',
 } as const;

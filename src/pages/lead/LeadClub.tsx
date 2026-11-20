@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
+import { ClubBanner } from '../../components/ClubBanner';
 import { useMe } from '../../components/Layout';
 import { ClubIcon, Empty, Tabs } from '../../components/ui';
 import * as P from '../../data/permissions';
 import { clubById, pendingMembers } from '../../data/selectors';
 import { useDB } from '../../data/store';
 import { NotFound } from '../NotFound';
-import { AttendanceTab } from './AttendanceTab';
+import { AttendanceTab, recentSessions } from './AttendanceTab';
 import { ClubInfoTab } from './ClubInfoTab';
 import { MembersTab } from './MembersTab';
 import { PostsTab } from './PostsTab';
@@ -87,36 +88,36 @@ export function LeadClub() {
 
   return (
     <div className="stack-lg">
-      <div className="page-head" style={{ marginBottom: 0 }}>
-        <div className="row" style={{ flexWrap: 'nowrap' }}>
-          <ClubIcon club={club} size="lg" />
-          <div>
-            <div className="muted small">Managing</div>
-            <h1>{club.name}</h1>
-          </div>
-        </div>
-        <div className="row">
-          {others.length > 0 && (
-            <select
-              className="input"
-              style={{ width: 'auto' }}
-              value=""
-              onChange={(e) => e.target.value && (window.location.hash = `#/lead/${e.target.value}`)}
-              aria-label="Switch club"
-            >
-              <option value="">Switch club…</option>
-              {others.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          )}
-          <Link to={`/clubs/${club.id}`} className="btn">
-            View public page
-          </Link>
-        </div>
-      </div>
+      <ClubBanner
+        club={club}
+        eyebrow="Managing"
+        actions={
+          <>
+            {others.length > 0 && (
+              <select
+                className="input"
+                style={{ width: 'auto' }}
+                value=""
+                onChange={(e) => e.target.value && (window.location.hash = `#/lead/${e.target.value}`)}
+                aria-label="Switch club"
+              >
+                <option value="">Switch club…</option>
+                {others.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+            <Link to={`/stats/${club.id}`} className="btn">
+              Attendance stats
+            </Link>
+            <Link to={`/clubs/${club.id}`} className="btn">
+              View public page
+            </Link>
+          </>
+        }
+      />
       {P.isAdmin(db, me.id) && !P.isLeader(db, me.id, club.id) && (
         <div className="callout warn small">You are viewing this club as an administrator.</div>
       )}
@@ -127,7 +128,7 @@ export function LeadClub() {
           tabs={[
             { id: 'posts', label: 'Updates & messages' },
             { id: 'schedule', label: 'Schedule' },
-            { id: 'attendance', label: 'Attendance' },
+            { id: 'attendance', label: 'Attendance', count: recentSessions(db, club.id).filter((s) => !s.record).length },
             { id: 'members', label: 'Members', count: pending },
             { id: 'info', label: 'Club info' },
           ]}

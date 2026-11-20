@@ -75,7 +75,9 @@ export function AdminAttendance() {
                 <td>
                   <div className="row" style={{ flexWrap: 'nowrap' }}>
                     <ClubIcon club={c} />
-                    <span className="strong">{c.name}</span>
+                    <Link to={`/stats/${c.id}`} className="strong text" title="Open attendance stats">
+                      {c.name}
+                    </Link>
                   </div>
                 </td>
                 <td className="num">{s.activeMembers}</td>
@@ -108,9 +110,14 @@ export function AdminAttendance() {
 
       {openClub && (
         <Modal title={`${openClub.name} attendance`} onClose={() => setOpen(null)}>
-          <Link to={`/lead/${openClub.id}`} className="small">
-            Open club management
-          </Link>
+          <div className="row">
+            <Link to={`/stats/${openClub.id}`} className="btn btn-sm btn-primary">
+              Full attendance stats
+            </Link>
+            <Link to={`/lead/${openClub.id}`} className="small">
+              Open club management
+            </Link>
+          </div>
           <AttendanceHistory club={openClub} />
           <MemberRates club={openClub} />
         </Modal>
